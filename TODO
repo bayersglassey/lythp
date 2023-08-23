@@ -1,0 +1,11 @@
+
+Add: continue, break, return, try/except/finally
+
+Allow this:
+
+    (import 'some.module'
+        thing1
+        (thing2 as_thing2)
+        ...)
+
+Do we care about metaclass support?.. see enum.lsp
