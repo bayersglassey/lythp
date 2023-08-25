@@ -15,12 +15,12 @@ It's Python turned into a LISP!
 
 The goal is not to preserve LISP traditions, keywords, and features; rather,
 the goal is to have fun fitting Python into a LISP syntax in the most natural
-way I can find.
+way I can find, using Python's built-in tokenizer.
 
 Here is a slightly more interesting example:
 ```python
 # A global dict for caching function values:
-(= _fib_cache {})
+(= _fib_cache (dict))
 
 
 (def fib (n)
@@ -45,11 +45,52 @@ Here is a slightly more interesting example:
 
 For more examples, see: [examples](examples)
 
+## The interpreter
+
+Currently, Lythp has its own runtime, instead of transpiling to Python.
+For instance, variables are stored in a stack of contexts, i.e. a list of
+dicts.
+It would be nice to transpile to Python instead, either by using `exec`
+or by generating bytecode directly.
+
+In any case, make sure you're in a python3 virtual environment:
+```shell
+python3 -m venv venv
+. venv/bin/activate
+```
+
+Then run files like so:
+```shell
+./lythp.py examples/fac.lsp
+```
+
+You can also run the interpreter in REPL mode like so:
+```shell
+./lythp.py
+```
+
+It may be helpful to install [rlwrap](https://github.com/hanslub42/rlwrap)
+to improve the REPL experience:
+```shell
+rlwrap ./lythp.py
+```
+
+You can run the unit tests like so:
+```shell
+pip install pytest pytest-cov
+pytest
+```
+
+And run all example programs like so:
+```shell
+./run.sh
+```
+
 ## Syntax
 
 The basic syntax is quite simple: the source code is chopped into tokens using Python's
 built-in [tokenize module](https://docs.python.org/3/library/tokenize.html), and a tree
-structure representing the program is then built out of the following types of token:
+structure representing the program is then built, with the following types of node:
 * Names: `x`, `None`, `True`, `,`, `*`, `==`
 * Literals: `100`, `"Hello!"`, `"""Docstrings too!"""`
 * Parentheses: `(...)`

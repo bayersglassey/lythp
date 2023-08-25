@@ -1,87 +1,23 @@
 
-Can we support kwargs, *, **, /, etc?..
-We could do (def f (x y (*args)) ...etc...)
-...but that use of "*" won't work in function calls, because it will look like
-multiplication.
-It would be kind of nice if we used () and [] to distinguish between
-function calls and other syntax. Then we could use e.g. (f [*args] [**kwargs]).
-And keyword arguments could be passed like (f [x 3] [y 4]).
-How would we ever achieve args/kwargs without this?.. I guess with a dedicated
-function for it: (call f (1 2 ...etc...) args kwargs)
-HMMMMM. O_o
-Looks like we can use ":" for syntax purposes (i.e. tokenizer is happy with it).
-So how about kwargs like `f(1, x=2)` => `(f 1 (: x 2))`?..
-Or we could just be normal LISP people and make a special syntax for kwarg
-symbols, so `(f 1 :x 2)`... but then we have to parse the argument list like
-crazy...
-I think it makes the most sense to just do this for now:
+Can we support kwargs, *, **, /, etc?.. YES:
 
-    (def f )
-
-    (= args (, 1 2 3))
-    (=kwargs {('x' 1) ('y' 2)})
-    (call f args kwargs)
-
-    # How about `x=1` => `[x 1]`?..
     (def f (x [/] y [*args] z [**kwargs]))
     (def f ([x 0] [/] [y 1] [*args] [z 3] [**kwargs]))
     (f 1 2 [*args] [z 3] [**kwargs])
-    # YES.
 
 Add: set literals
 
-    # Dict & set literals?..
-    {'x': 1 'y': 2}
-    {1 2}
-
-    # All composite literals use {...}?..
-    # NOTE: this frees up [...] for use in other syntax...
-    {dict 'x' 1 'y' 2}
-    {set 1 2}
-    {list 1 2}
-    {tuple 1 2}
-    {quote x}
-    {quote (1 2 3)}
-    {listcomp (* i 2) (for i (range 5))}
-    ...etc...
-
-    # Are braces just another namespace? O_o Seems like it.
-    # Like, the following could be two different functions:
-    (def f (x) ...etc...)
-    {def f (x) ...etc...}
-    # ...but we probably don't want to allow this.
-    # And also, why bother to use {...} then, why not just:
-    (mkdict 'x' 1 'y' 2)
-    (mkset 1 2)
-    (mklist 1 2)
-    # ...well, "why not" you say, the answer is precisely to have a
-    # separate "namespace" ensuring that Python syntax doesn't get
-    # overwritten.
-    # Could use "language-owned constants":
     (:dict 'x' 1 'y' 2)
-    (:set 1 2)
-    (:list 1 2)
-    # ...THAT MIGHT BE THE NICEST THING, ACTUALLY.
-
-    # [...] is list, and you can use constructors to convert them to
-    # the other types?..
-    # THIS IS ACTUALLY THE EASIEST.
-    # And it represents basically what we'd be doing under the hood, anyway.
-    [1 2 3]
-    (tuple [1 2 3])
-    (list [1 2 3])
-    (set [1 2 3])
-    (dict [['x' 1] ['y' 2]])
-    # ...would be nice to have a guaranteed way to refer to each basic
-    # type, though.
-    # Like :dict or :tuple.
-    # Starts getting a bit messy-looking, though.
-    (:dict [['x' 1] ['y' 2]])
-    # ...or this could be what braces are for?..
-    {dict [['x' 1] ['y' 2]]}
-    # ...but then why force people to use the [...]?
-    # So maybe we want to just use braces after all.
-    # Like {dict 'x' 1 'y' 2} etc.
+    (:set 1 2 3)
+    (:list 1 2 3)
+    (:tuple 1 2 3)
+    (:quote x)
+    (:quote (def f (x) (+ x 1)))
+    (:dictcomp i (* i 2) (for i (range 5)))
+    (:listcomp (* i 2) (for i (range 5)))
+    (:setcomp (* i 2) (for i (range 5)))
+    (:genexp (* i 2) (for i (range 5)))
+    ...etc...
 
 =========================================================================
 
