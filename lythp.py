@@ -8,6 +8,7 @@ import builtins
 import operator
 import inspect
 from pprint import pprint
+from functools import wraps, reduce
 
 
 def parse_bool(value):
@@ -19,6 +20,26 @@ DEBUG_EXEC = parse_bool(os.environ.get('DEBUG_EXEC')) # TODO: do something with 
 
 
 REPL_PROMPT = '> '
+
+
+def get_reducing_operator(op):
+    """Returns a version of the given operator function which "reduces",
+    i.e. accepts a potentially infinite number of arguments, and keeps
+    applying the operator on them pairwise until it has used them up.
+
+        >>> op = get_reducing_operator(operator.add)
+        >>> op(1)
+        1
+        >>> op(1, 2)
+        3
+        >>> op(1, 2, 3)
+        6
+
+    """
+    @wraps(op)
+    def wrapped_op(x, *args):
+        return reduce(op, args, x)
+    return wrapped_op
 
 
 IGNORABLE_TOKEN_TYPES = (
@@ -71,19 +92,19 @@ BUILTINS = {
     'getitem': operator.getitem,
     'setitem': operator.setitem,
     'delitem': operator.delitem,
-    '+': operator.add,
-    '-': operator.sub,
-    '*': operator.mul,
-    '%': operator.mod,
-    '@': operator.matmul,
-    '/': operator.truediv,
-    '//': operator.floordiv,
-    '**': operator.pow,
-    '<<': operator.lshift,
-    '>>': operator.rshift,
-    '&': operator.and_,
-    '|': operator.or_,
-    '^': operator.xor,
+    '+': get_reducing_operator(operator.add),
+    '-': get_reducing_operator(operator.sub),
+    '*': get_reducing_operator(operator.mul),
+    '%': get_reducing_operator(operator.mod),
+    '@': get_reducing_operator(operator.matmul),
+    '/': get_reducing_operator(operator.truediv),
+    '//': get_reducing_operator(operator.floordiv),
+    '**': get_reducing_operator(operator.pow),
+    '<<': get_reducing_operator(operator.lshift),
+    '>>': get_reducing_operator(operator.rshift),
+    '&': get_reducing_operator(operator.and_),
+    '|': get_reducing_operator(operator.or_),
+    '^': get_reducing_operator(operator.xor),
     '~': operator.invert,
 
     # Python's classic "variables you thought were keywords"
@@ -95,19 +116,19 @@ BUILTINS = {
 
 IN_PLACE_OPERATORS = {
     # See: https://docs.python.org/3/library/operator.html#in-place-operators
-    '+=': operator.iadd,
-    '-=': operator.isub,
-    '*=': operator.imul,
-    '%=': operator.imod,
-    '@=': operator.imatmul,
-    '/=': operator.itruediv,
-    '//=': operator.ifloordiv,
-    '**=': operator.ipow,
-    '<<=': operator.ilshift,
-    '>>=': operator.irshift,
-    '&=': operator.iand,
-    '|=': operator.ior,
-    '^=': operator.ixor,
+    '+=': get_reducing_operator(operator.iadd),
+    '-=': get_reducing_operator(operator.isub),
+    '*=': get_reducing_operator(operator.imul),
+    '%=': get_reducing_operator(operator.imod),
+    '@=': get_reducing_operator(operator.imatmul),
+    '/=': get_reducing_operator(operator.itruediv),
+    '//=': get_reducing_operator(operator.ifloordiv),
+    '**=': get_reducing_operator(operator.ipow),
+    '<<=': get_reducing_operator(operator.ilshift),
+    '>>=': get_reducing_operator(operator.irshift),
+    '&=': get_reducing_operator(operator.iand),
+    '|=': get_reducing_operator(operator.ior),
+    '^=': get_reducing_operator(operator.ixor),
 }
 
 

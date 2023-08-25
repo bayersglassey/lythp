@@ -85,7 +85,7 @@ Add: set literals
 
 =========================================================================
 
-Add: continue, break, return, try/except/finally
+Add: continue, break, return, try/except/finally, global
 
 Add: macros?.. they won't be quite the same as usual LISP macros since
 our s-expressions aren't simple Python types.
