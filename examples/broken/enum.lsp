@@ -18,13 +18,12 @@ This file doesn't work right now, we get this error:
 See: https://stackoverflow.com/questions/69328274/enum-raises-attributeerror-dict-object-has-no-attribute-member-names
 """
 
-(= enum (import 'enum'))
-(= Enum (. enum Enum))
+(import 'enum' Enum)
 
 (class MyEnum (str Enum)
     (= x "XXX")
     (= y "YYY")
 )
 
-(assert (== (. MyEnum x) "XXX"))
-(assert (== (type (. MyEnum x)) MyEnum))
+(assert (== (.x MyEnum) "XXX"))
+(assert (== (type (.x MyEnum)) MyEnum))

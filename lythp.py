@@ -91,9 +91,6 @@ BUILTINS = {
     'True': True,
     'False': False,
     '...': ...,
-
-    # This is how we import things
-    'import': __import__,
 }
 
 IN_PLACE_OPERATORS = {
@@ -120,7 +117,7 @@ def mklambda(name, var_names, *, var_defaults, env, exprs):
         for name, value in zip(var_names, args):
             vars[name] = value
         vars.update(**kwargs)
-        return exec_exprs(exprs, env, vars=vars)
+        return eval_exprs(exprs, env, vars=vars)
 
     f.__name__ = f.__qualname__ = name
     if exprs and exprs[0][0] == 'literal' and isinstance(exprs[0][1], str):
@@ -328,7 +325,7 @@ def eval_expr(expr, env):
         >>> eval_expr(('paren', [('name', 'or'), ('literal', 0), ('literal', 1)]), [])
         1
 
-        >>> eval_expr(('paren', [('name', '.'), ('literal', 3), ('name', '__class__')]), [])
+        >>> eval_expr(('paren', [('name', '.'), ('name', '__class__'), ('literal', 3)]), [])
         <class 'int'>
 
         >>> eval_expr(('paren', [('name', 'assert'), ('literal', 1)]), [])
@@ -377,7 +374,31 @@ def eval_expr(expr, env):
         expr0 = data[0]
         data = data[1:]
         cmd = expr0[1]
-        if expr0 == ('name', 'def'):
+        if expr0 == ('name', 'import'):
+            # Import module / from module
+            assert len(data) >= 1, f"{cmd}: need at least 1 argument"
+            module_name = eval_expr(data[0], env)
+            module = __import__(module_name)
+            if len(data) == 1:
+                set_var(module_name, module, env)
+            else:
+                for subtag, subdata in data[1:]:
+                    if subtag == 'name':
+                        name = subdata
+                        value = getattr(module, name)
+                        set_var(name, value, env)
+                    elif subtag == 'paren':
+                        assert len(subdata) == 2, "While importing {module_name}: expected pair of names, got s-expression of length: {len(subdata)}"
+                        assert subdata[0][0] == 'name' and subdata[1][0] == 'name', \
+                            f"While importing {module_name}: expected pair of names, got s-expressions of type: {subdata[0][0]!r} {subdata[1][0]!r}"
+                        name = subdata[0][1]
+                        as_name = subdata[1][1]
+                        value = getattr(module, name)
+                        set_var(as_name, value, env)
+                    else:
+                        raise AssertionError(f"While importing {module_name}: expected name or list, got s-expression of type: {subtag!r}")
+            return module
+        elif expr0 == ('name', 'def'):
             # Defining a function (i.e. creating a Lambda and storing it in
             # a variable)
             assert len(data) >= 2, f"{cmd}: need at least 2 arguments"
@@ -388,7 +409,7 @@ def eval_expr(expr, env):
             func = mklambda(name, var_names, var_defaults=var_defaults, env=env.copy(), exprs=exprs)
             set_var(name, func, env)
             return func
-        if expr0 == ('name', 'class'):
+        elif expr0 == ('name', 'class'):
             # Defining a class and storing it in a variable
             assert len(data) >= 2, f"{cmd}: need at least 2 arguments"
             assert data[0][0] == 'name', f"{cmd}: first argument must be a name, got s-expression of type: {data[0][0]!r}"
@@ -400,7 +421,7 @@ def eval_expr(expr, env):
             vars = {}
             if subexprs and subexprs[0][0] == 'literal' and isinstance(subexprs[0][1], str):
                 vars['__doc__'] = subexprs[0][1]
-            value = exec_exprs(data[2:], env, vars=vars)
+            value = eval_exprs(data[2:], env, vars=vars)
             cls = type(name, bases, vars)
             set_var(name, cls, env)
             return cls
@@ -413,30 +434,105 @@ def eval_expr(expr, env):
         elif expr0 == ('name', ','):
             # Tuple constructor
             return tuple(eval_expr(expr, env) for expr in data)
-        elif expr0 == ('name', '='):
-            # Evaluating a series of s-expressions, and storing the value
-            # of the last one in a variable
-            assert len(data) >= 1, f"{cmd}: need at least 1 argument"
-            if data[0][0] == 'name':
-                name = data[0][1]
-                value = exec_exprs(data[1:], env)
-                set_var(name, value, env)
-            elif data[0][0] == 'paren':
-                subexprs = data[0][1]
-                assert subexprs[:1] == [('name', '.')], f"{cmd}: if first argument is a paren, it should start with a '.'"
-                subexprs = subexprs[1:]
-                assert len(subexprs) >= 1, f"{cmd}: in '.': need at least 1 argument"
-                obj = eval_expr(subexprs[0], env)
-                names = []
-                for subexpr in subexprs[1:]:
-                    assert subexpr[0] == 'name', f"{cmd}: in '.': all arguments after the first must be names, got s-expression of type: {subexpr[0]!r}"
-                    names.append(subexpr[1])
-                for name in names[:-1]:
+        elif expr0 == ('name', '.') or expr0[0] == 'brack':
+            # Item/attr lookup
+
+            # Check (verify) the syntax
+            def check_data(expr0, data):
+                while True:
+                    if expr0 == ('name', '.'):
+                        assert data[0][0] == 'name', f"{cmd}: Expected name, got s-expression of type: {data[0][0]}"
+                        expr0 = data[1]
+                        data = data[2:]
+                    elif expr0[0] == 'brack':
+                        expr0 = data[0]
+                        data = data[1:]
+                    else:
+                        break
+                assert len(data) == 0, f"{cmd}: Expected a single value, got: {len(data) + 1}"
+            check_data(expr0, data)
+
+            obj = eval_expr(data[-1], env)
+            while True:
+                if expr0 == ('name', '.'):
+                    name = data[0][1]
                     obj = getattr(obj, name)
-                value = exec_exprs(data[1:], env)
-                setattr(obj, names[-1], value)
-            else:
-                raise AssertionError(f"{cmd}: first argument must be a name or paren, got s-expression of type: {data[0][0]!r}")
+                    expr0 = data[1]
+                    data = data[2:]
+                elif expr0[0] == 'brack':
+                    index = eval_exprs(expr0[1], env)
+                    obj = obj[index]
+                    expr0 = data[0]
+                    data = data[1:]
+                else:
+                    break
+            return obj
+        elif expr0 == ('name', '=') or expr0[0] == 'name' and cmd in IN_PLACE_OPERATORS:
+            # Assignment
+            # Evaluating a series of s-expressions, and storing the value
+            # of the last one in a variable/attr/item
+
+            func = IN_PLACE_OPERATORS.get(cmd)
+
+            assert len(data) >= 1, f"{cmd}: need at least 1 argument"
+            if data[0][0] == 'name' and data[0][1] != '.':
+                name = data[0][1]
+                value = eval_exprs(data[1:], env)
+                if func:
+                    old_value = get_var(name, env)
+                    value = func(old_value, value)
+                set_var(name, value, env)
+                return value
+            expr0 = data[0]
+            data = data[1:]
+
+            # Check (verify) the syntax
+            def check_data(expr0, data):
+                i = 0
+                n_parts = 0
+                while True:
+                    if expr0 == ('name', '.'):
+                        assert data[0][0] == 'name', f"{cmd}: Expected name, got s-expression of type: {data[0][0]}"
+                        expr0 = data[1]
+                        data = data[2:]
+                        i += 2
+                        n_parts += 1
+                    elif expr0[0] == 'brack':
+                        expr0 = data[0]
+                        data = data[1:]
+                        i += 1
+                        n_parts += 1
+                    else:
+                        break
+                return i, n_parts
+            i, n_parts = check_data(expr0, data)
+
+            obj = eval_expr(data[i-1], env)
+            value = eval_exprs(data[i:], env)
+            for i in range(n_parts - 1):
+                if expr0 == ('name', '.'):
+                    name = data[0][1]
+                    obj = getattr(obj, name)
+                    expr0 = data[1]
+                    data = data[2:]
+                elif expr0[0] == 'brack':
+                    index = eval_exprs(expr0[1], env)
+                    obj = obj[index]
+                    expr0 = data[0]
+                    data = data[1:]
+
+            if expr0 == ('name', '.'):
+                name = data[0][1]
+                if func:
+                    old_value = getattr(obj, name)
+                    value = func(old_value, value)
+                setattr(obj, name, value)
+            elif expr0[0] == 'brack':
+                index = eval_exprs(expr0[1], env)
+                if func:
+                    old_value = obj[index]
+                    value = func(old_value, value)
+                obj[index] = value
             return value
         elif expr0[0] == 'name' and cmd in IN_PLACE_OPERATORS:
             # In-place operator, and possibly assignment
@@ -447,24 +543,15 @@ def eval_expr(expr, env):
                 name = data[0][1]
                 set_var(name, value, env)
             return value
-        elif expr0 == ('name', '.'):
-            # Attribute lookup
-            assert len(data) >= 1, f"{cmd}: need at least 1 argument"
-            value = eval_expr(data[0], env)
-            for subexpr in data[1:]:
-                assert subexpr[0] == 'name', f"{cmd}: all arguments after the first must be names, got s-expression of type: {subexpr[0]!r}"
-                name = subexpr[1]
-                value = getattr(value, name)
-            return value
         elif expr0 == ('name', 'do'):
             # Evaluating a series of s-expressions, and returning the value
             # of the last one
-            value = exec_exprs(data, env)
+            value = eval_exprs(data, env)
             return value
         elif expr0 == ('name', 'raise'):
             # Evaluating a series of s-expressions, and raising the value
             # of the last one
-            value = exec_exprs(data, env)
+            value = eval_exprs(data, env)
             raise value
         elif expr0 == ('name', 'for'):
             # For loop
@@ -477,7 +564,7 @@ def eval_expr(expr, env):
             value = None
             for item in for_value:
                 vars = {name: item}
-                value = exec_exprs(exprs, env, vars=vars)
+                value = eval_exprs(exprs, env, vars=vars)
             return value
         elif expr0 == ('name', 'while'):
             # While loop
@@ -487,7 +574,7 @@ def eval_expr(expr, env):
 
             value = None
             while eval_expr(cond_expr, env):
-                value = exec_exprs(exprs, env)
+                value = eval_exprs(exprs, env)
             return value
         elif expr0 == ('name', 'if'):
             # If expression
@@ -496,7 +583,7 @@ def eval_expr(expr, env):
                 assert len(subdata) >= 1, f"{cmd}: each sub-expression needs at least 1 argument"
                 cond_value = eval_expr(subdata[0], env)
                 if cond_value:
-                    return exec_exprs(subdata[1:], env)
+                    return eval_exprs(subdata[1:], env)
             return None
         elif expr0 == ('name', 'and'):
             # And expression
@@ -533,24 +620,24 @@ def eval_expr(expr, env):
         raise ValueError(f"Unrecognized s-expression tag: {tag!r}")
 
 
-def exec_exprs(exprs, env, *, vars=None, repl=False):
-    """Executes a list of s-expressions
+def eval_exprs(exprs, env, *, vars=None, repl=False):
+    """Evaluates a list of s-expressions, returning the value of the last one.
 
         >>> vars = get_global_vars()
         >>> exprs = text_to_exprs('(def f ((x) (y "default")) (, x y)) (print (f 1 2)) (print (f 1))')
-        >>> exec_exprs(exprs, [], vars=vars)
+        >>> eval_exprs(exprs, [], vars=vars)
         (1, 2)
         (1, 'default')
 
         >>> vars = get_global_vars()
         >>> exprs = text_to_exprs('(for x [1 2] (print "x:" x))')
-        >>> exec_exprs(exprs, [], vars=vars)
+        >>> eval_exprs(exprs, [], vars=vars)
         x: 1
         x: 2
 
         >>> vars = get_global_vars()
         >>> exprs = text_to_exprs('(= x 0) (while (< x 3) (print "x:" x) (+= x 1))')
-        >>> exec_exprs(exprs, [], vars=vars)
+        >>> eval_exprs(exprs, [], vars=vars)
         x: 0
         x: 1
         x: 2
@@ -558,18 +645,18 @@ def exec_exprs(exprs, env, *, vars=None, repl=False):
 
         >>> vars = get_global_vars()
         >>> exprs = text_to_exprs('(if (False (print "Branch A") 1) (else (print "Branch B") 2))')
-        >>> exec_exprs(exprs, [], vars=vars)
+        >>> eval_exprs(exprs, [], vars=vars)
         Branch B
         2
 
         >>> vars = get_global_vars()
         >>> exprs = text_to_exprs('(list (map (lambda (x) (* x 10)) (range 3)))')
-        >>> exec_exprs(exprs, [], vars=vars)
+        >>> eval_exprs(exprs, [], vars=vars)
         [0, 10, 20]
 
         >>> vars = get_global_vars()
-        >>> exprs = text_to_exprs('(class A()) (= a (A)) (= (. a x) (A)) (= (. a x y) 3) (. a x y)')
-        >>> exec_exprs(exprs, [], vars=vars)
+        >>> exprs = text_to_exprs('(class A()) (= a (A)) (= .x a (A)) (= .x.y a 3) (.x.y a)')
+        >>> eval_exprs(exprs, [], vars=vars)
         3
 
     """
@@ -645,7 +732,7 @@ def main():
         tokens = tokenize.tokenize(readline)
         exprs = tokens_to_exprs(tokens, repl=repl)
         global_vars = get_global_vars()
-        exec_exprs(exprs, [], vars=global_vars, repl=repl)
+        eval_exprs(exprs, [], vars=global_vars, repl=repl)
 
 
 if __name__ == '__main__':

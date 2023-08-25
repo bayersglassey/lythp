@@ -6,10 +6,10 @@
     (if
         ((< n 0) (raise (ValueError "Less than 0")))
         ((< n 2) n) # Base cases: 0, 1
-        ((in _fib_cache n) (getitem _fib_cache n))
+        ((in _fib_cache n) ([n] _fib_cache))
         (else
             (= value (+ (fib (- n 1)) (fib (- n 2)) ))
-            (setitem _fib_cache n value)
+            (= [n] _fib_cache value)
             value
         )
     )

@@ -5,10 +5,10 @@
 (def fac (n)
     (if
         ((<= n 0) 1)
-        ((in _fac_cache n) (getitem _fac_cache n))
+        ((in _fac_cache n) ([n] _fac_cache))
         (else
             (= value (* n (fac (- n 1))))
-            (setitem _fac_cache n value)
+            (= [n] _fac_cache value)
             value
         )
     )

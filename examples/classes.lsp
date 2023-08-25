@@ -3,26 +3,27 @@
 (class Adder ()
     """A class for adding things together."""
     (def __init__ ((self) (value 0))
-        (= (. self _value) value)
+        (= ._value self value)
         None # __init__ must return None, not the result of the above assignment...
     )
-    (def get (self) (. self _value))
+    (def get (self) (._value self))
     (def add ((self) (n 1))
-        (= (. self _value) (+ (. self _value) n))
+        (+= ._value self n)
     )
 )
 
 
-(print (. Adder __doc__))
+(print (.__doc__ Adder))
 
 
 (= a (Adder))
-(print ((. a get)))
-(assert (== ((. a get)) 0))
+(print ((.get a)))
+(assert (== ((.get a)) 0))
 
 
 (= a (Adder 10))
-((. a add))
-((. a add) 2)
-(print ((. a get)))
-(assert (== ((. a get)) 13))
+(print ((.get a)))
+((.add a))
+((.add a) 2)
+(print ((.get a)))
+(assert (== ((.get a)) 13))

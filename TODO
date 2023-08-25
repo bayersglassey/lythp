@@ -1,5 +1,32 @@
 
-Add: continue, break, return, try/except/finally
+Can we support kwargs, *, **, /, etc?..
+We could do (def f (x y (*args)) ...etc...)
+...but that use of "*" won't work in function calls, because it will look like
+multiplication.
+It would be kind of nice if we used () and [] to distinguish between
+function calls and other syntax. Then we could use e.g. (f [*args] [**kwargs]).
+And keyword arguments could be passed like (f [x 3] [y 4]).
+How would we ever achieve args/kwargs without this?.. I guess with a dedicated
+function for it: (call f (1 2 ...etc...) args kwargs)
+HMMMMM. O_o
+Looks like we can use ":" for syntax purposes (i.e. tokenizer is happy with it).
+So how about kwargs like `f(1, x=2)` => `(f 1 (: x 2))`?..
+Or we could just be normal LISP people and make a special syntax for kwarg
+symbols, so `(f 1 :x 2)`... but then we have to parse the argument list like
+crazy...
+I think it makes the most sense to just do this for now:
+
+    (def f )
+
+    (= args (, 1 2 3))
+    (=kwargs {('x' 1) ('y' 2)})
+    (call f args kwargs)
+
+    # How about `x=1` => `[x 1]`?..
+    (def f (x [/] y [*args] z [**kwargs]))
+    (def f ([x 0] [/] [y 1] [*args] [z 3] [**kwargs]))
+    (f 1 2 [*args] [z 3] [**kwargs])
+    # YES.
 
 Add: set literals
 
@@ -56,18 +83,9 @@ Add: set literals
     # So maybe we want to just use braces after all.
     # Like {dict 'x' 1 'y' 2} etc.
 
-Add decent syntax for getting/setting attributes/items.
+=========================================================================
 
-    # Can we use [...] for indexing? YES.
-    (.x.y[0] obj) => (getitem (getattr (getattr obj x) y) 0)
-    (=.x.y[0] obj 3) => (setitem (getattr (getattr obj x) y) 0 3)
-    # ...so '[...]', '.', and '=' are like really complicated macros.
-    # Except that we don't want them to look up the 'getitem', 'getattr'
-    # functions at runtime, that would be silly.
-    # We could use getitem/getattr literals. O_o Like ('literal', getitem).
-    # Or we could add "language-owned constants", e.g. which start with ":".
-    (.x.y[0] obj) => (:getitem (:getattr (:getattr obj x) y) 0)
-    (=.x.y[0] obj 3) => (:setitem (:getattr (:getattr obj x) y) 0 3)
+Add: continue, break, return, try/except/finally
 
 Add: macros?.. they won't be quite the same as usual LISP macros since
 our s-expressions aren't simple Python types.
@@ -79,13 +97,6 @@ I guess we use a 'quote' function, e.g. (assert (== (quote x) (, 'name' 'x')))
 ...or we could use "," for quote, and use something else for tuples...
 
 Understand INDENT/DEDENT token types. Could we use them?..
-
-Allow this:
-
-    (import 'some.module'
-        thing1
-        (thing2 as_thing2)
-        ...etc...)
 
 Can we support comprehensions?.. yup:
 
@@ -118,35 +129,6 @@ Can we support comprehensions?.. yup:
             ...ummmm...
         )
     )
-
-Can we support kwargs, *, **, /, etc?..
-We could do (def f (x y (*args)) ...etc...)
-...but that use of "*" won't work in function calls, because it will look like
-multiplication.
-It would be kind of nice if we used () and [] to distinguish between
-function calls and other syntax. Then we could use e.g. (f [*args] [**kwargs]).
-And keyword arguments could be passed like (f [x 3] [y 4]).
-How would we ever achieve args/kwargs without this?.. I guess with a dedicated
-function for it: (call f (1 2 ...etc...) args kwargs)
-HMMMMM. O_o
-Looks like we can use ":" for syntax purposes (i.e. tokenizer is happy with it).
-So how about kwargs like `f(1, x=2)` => `(f 1 (: x 2))`?..
-Or we could just be normal LISP people and make a special syntax for kwarg
-symbols, so `(f 1 :x 2)`... but then we have to parse the argument list like
-crazy...
-I think it makes the most sense to just do this for now:
-
-    (def f )
-
-    (= args (, 1 2 3))
-    (=kwargs {('x' 1) ('y' 2)})
-    (call f args kwargs)
-
-    # How about `x=1` => `[x 1]`?..
-    (def f (x [/] y [*args] z [**kwargs]))
-    (def f ([x 0] [/] [y 1] [*args] [z 3] [**kwargs]))
-    (f 1 2 [*args] [z 3] [**kwargs])
-    # YES.
 
 Can we add an import hook so we can write modules as .lsp files?..
 *** THEN WE COULD USE DOCTEST!!!!
