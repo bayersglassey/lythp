@@ -1,8 +1,67 @@
 
+Implement significant whitespace:
+
+    Like this:
+
+        def fac (n)
+            ; """A factorial function."""
+            if
+                (<= n 0) 1
+                (in _fac_cache n) ([n] _fac_cache)
+                else
+                    = value (* n (fac (- n 1)))
+                    = [n] _fac_cache value
+                    ; value
+
+    After NEWLINE, the logic should be:
+    * pop a block
+    * while next is DEDENT, pop a block
+    * if next is INDENT, push an indent-block
+    * if next is ';', start a new ';'-block
+    * else, start a new line-block
+        * if next is ':', ignore it (so, it's just something for tokenizer to take into account for the purposes of indentation)
+          ...OR, we could have a ':' "function" for use in the syntax of for/while/try/etc.
+
+    When popping a block,
+    * if ';'-block or indent-block, concatenate onto parent block
+    * elif line-block, end an expr (basically same effect as RPAR, but if expr is empty, then ignore it)
+    * else, end an expr in the usual way (RPAR, RSQB, RBRACE)
+
+    NOTE: within parens/bracks/braces, Python's tokenizer never generates NEWLINE,
+    only NL!
+    So the following are equivalent (note the lack of parens around the addition
+    in the second example):
+
+        (def f (x)
+            (+ x 1)
+        )
+
+        def f (x)
+            + x 1
+
+    Also, add a way to start indented blocks, maybe `:`:
+
+        try
+            :
+                ...etc...
+            except ex Exception
+                ...etc...
+            finally
+                ...etc...
+
+    Do we want to force people to use that in for-loops?.. would be
+    unfortunate:
+
+        for x xs
+            :
+                ...etc...
+            else
+                ...etc...
+
 Can we support kwargs, *, **, /, etc?.. YES:
 
-    (def f (x [/] y [*args] z [**kwargs]))
-    (def f ([x 0] [/] [y 1] [*args] [z 3] [**kwargs]))
+    (def f (x [/] y [*args] z [**kwargs]) ...etc...)
+    (def f ([x 0] [/] [y 1] [*args] [z 3] [**kwargs]) ...etc...)
     (f 1 2 [*args] [z 3] [**kwargs])
 
 Add: set literals
@@ -21,7 +80,22 @@ Add: set literals
 
 =========================================================================
 
-Add: continue, break, return, try/except/finally, global
+Add: continue, break, return, try/except/finally, global, del
+
+Figure out try/excepy/finally:
+
+    try
+        :
+            ...etc...
+        except ex Exception
+            ...etc...
+        else
+            ...etc...
+        finally
+            ...etc...
+
+    # NOTE: this assumes a theoretical `:` syntax which introduces
+    # indented blocks... kind of the reverse of `;`
 
 Add: macros?.. they won't be quite the same as usual LISP macros since
 our s-expressions aren't simple Python types.
@@ -31,8 +105,6 @@ How do we quote things?..
 Can't use "`", Python tokenizer says it's an error.
 I guess we use a 'quote' function, e.g. (assert (== (quote x) (, 'name' 'x')))
 ...or we could use "," for quote, and use something else for tuples...
-
-Understand INDENT/DEDENT token types. Could we use them?..
 
 Can we support comprehensions?.. yup:
 

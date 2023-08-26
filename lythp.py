@@ -45,10 +45,7 @@ def get_reducing_operator(op):
 IGNORABLE_TOKEN_TYPES = (
     tokenize.ENCODING,
     tokenize.NL,
-    tokenize.NEWLINE,
     tokenize.COMMENT,
-    tokenize.INDENT,
-    tokenize.DEDENT,
     tokenize.ENDMARKER,
 )
 
@@ -63,9 +60,13 @@ NAME_TOKEN_TYPES = (
 )
 
 CLOSE_TOKEN_TYPES = {
+    # token_type: close_character (just used for debug messages)
     tokenize.RPAR: ')',
     tokenize.RSQB: ']',
     tokenize.RBRACE: '}',
+
+    tokenize.DEDENT: '<de-indent>',
+    tokenize.NEWLINE: '<newline>',
 }
 
 CLOSE_TOKEN_TAGS = {
@@ -73,6 +74,11 @@ CLOSE_TOKEN_TAGS = {
     tokenize.RPAR: 'paren',
     tokenize.RSQB: 'brack',
     tokenize.RBRACE: 'brace',
+
+    # These ones invokes special behaviour, they're not actually
+    # s-expression tags
+    tokenize.DEDENT: 'indent',
+    tokenize.NEWLINE: 'newline',
 }
 
 BUILTINS = {
@@ -160,14 +166,43 @@ def tokens_to_exprs(tokens, *, repl=False):
     stack = []
     exprs = None
 
+    def push(token_type):
+        nonlocal exprs
+        stack.append((token_type, exprs))
+        exprs = []
+
+    def pop(token):
+        nonlocal exprs
+        assert exprs is not None, f"Unexpected {token.string!r}"
+        tag = CLOSE_TOKEN_TAGS[token.exact_type]
+        subexprs = exprs
+        expected_type, exprs = stack.pop()
+        assert expected_type == token.exact_type, f"Expected {CLOSE_TOKEN_TYPES[expected_type]!r}, got: {token!r}"
+        return tag, subexprs
+
     def produce(expr):
         if exprs is None:
             yield expr
         else:
             exprs.append(expr)
 
+    push(tokenize.NEWLINE)
+
+    # Make sure we can do `next(tokens)`
+    tokens = iter(tokens)
+
     for token in tokens:
         try:
+            while token.type == tokenize.NEWLINE:
+                next_token = next(tokens)
+                if next_token.type != tokenize.DEDENT:
+                    tag, subexprs = pop(token)
+                    assert tag == 'newline' # this should be guaranteed to be the case
+                    expr = ('paren', subexprs)
+                    yield from produce(expr)
+                    push(tokenize.NEWLINE)
+                token = next_token
+
             if token.type in IGNORABLE_TOKEN_TYPES:
                 continue
 
@@ -178,22 +213,27 @@ def tokens_to_exprs(tokens, *, repl=False):
                 value = ast.literal_eval(token.string)
                 expr = ('literal', value)
                 yield from produce(expr)
+            elif token.exact_type == tokenize.INDENT:
+                push(tokenize.DEDENT)
+                push(tokenize.NEWLINE)
             elif token.exact_type == tokenize.LPAR:
-                stack.append((tokenize.RPAR, exprs))
-                exprs = []
+                push(tokenize.RPAR)
             elif token.exact_type == tokenize.LSQB:
-                stack.append((tokenize.RSQB, exprs))
-                exprs = []
+                push(tokenize.RSQB)
             elif token.exact_type == tokenize.LBRACE:
-                stack.append((tokenize.RBRACE, exprs))
-                exprs = []
+                push(tokenize.RBRACE)
             elif token.exact_type in CLOSE_TOKEN_TYPES:
-                assert exprs is not None, f"Unexpected {token.string!r}"
-                tag = CLOSE_TOKEN_TAGS[token.exact_type]
-                expr = (tag, exprs)
-                expected_type, exprs = stack.pop()
-                assert expected_type == token.exact_type, f"Expected {CLOSE_TOKEN_TYPES[expected_type]}, got: {token.string!r}"
-                yield from produce(expr)
+                tag, subexprs = pop(token)
+                assert tag != 'newline' # should be handled above when token.type == tokenize.NEWLINE
+                if tag == 'indent':
+                    # token.type == tokenize.DEDENT
+                    # Indented blocks are just concatenated onto previous block
+                    exprs += subexprs
+                    print("DEDEEEEEEEEEENT")
+                else:
+                    # (...), [...], {...} become s-expressions
+                    expr = (tag, subexprs)
+                    yield from produce(expr)
             elif token.type in NAME_TOKEN_TYPES:
                 # Make sure this check comes after checks of token.exact_type,
                 # since NAME_TOKEN_TYPES contains token.type, which is "inexact"
