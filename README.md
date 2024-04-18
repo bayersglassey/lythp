@@ -45,6 +45,19 @@ Here is a slightly more interesting example:
 
 For more examples, see: [examples](examples)
 
+## Quick start
+
+```shell
+$ pip install lythp
+$ python -m lythp
+
+> (def hello (name) (print (+ "Hello, " name)))
+<function hello at 0x7f9f05f160d0>
+> (hello "World")        
+Hello, World
+None
+```
+
 ## The interpreter
 
 Currently, Lythp has its own runtime, instead of transpiling to Python.
@@ -59,21 +72,28 @@ python3 -m venv venv
 . venv/bin/activate
 ```
 
+Download the code & `pip install -e .`, or grab whatever (probably old)
+version is up in pypi with `pip install lythp`.
+
 Then run files like so:
 ```shell
-./lythp.py examples/fac.lsp
+python -m lythp examples/fac.lsp
 ```
 
 You can also run the interpreter in REPL mode like so:
 ```shell
-./lythp.py
+python -m lythp
 ```
 
 It may be helpful to install [rlwrap](https://github.com/hanslub42/rlwrap)
 to improve the REPL experience:
 ```shell
-rlwrap ./lythp.py
+rlwrap python -m lythp
 ```
+
+## Tests & examples
+
+For these, you will need the code checked out locally.
 
 You can run the unit tests like so:
 ```shell
